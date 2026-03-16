@@ -8,20 +8,15 @@ Unlike typical recipe recommenders or LLM-only assistants, this project treats d
 
 ## Demo Video
 
-[Watch the demo video here](YOUR_VIDEO_LINK)
+
+https://github.com/user-attachments/assets/6b450dcd-42f9-4b80-a892-03b949a3833d
+
 
 ---
 
 ## Poster
 
-[View the project poster here](YOUR_POSTER_LINK)
-
-<!--
-If you want to directly display the poster in the README, upload the poster image
-to your repo (for example under /assets/poster.png), then uncomment the line below.
-
-![Project Poster](YOUR_POSTER_IMAGE_PATH)
--->
+https://github.com/user-attachments/files/26037784/team3-final-final.pdf
 
 ---
 
@@ -265,7 +260,5 @@ Possible next steps include:
 ---
 
 ## License
-
-You can add a license here if you want, for example:
 
 MIT License
