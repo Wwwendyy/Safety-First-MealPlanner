@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Reasoning-Based Weekly Meal Planner</title>
+  <style>
+    body { font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial; background:linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin:0; padding:24px;}
+    .wrap { max-width: 1000px; margin:0 auto; background:#fff; padding:24px; border-radius:14px; box-shadow:0 8px 30px rgba(0,0,0,.08);}
+    h1 { margin:0 0 6px; }
+    .sub { color:#666; margin:0 0 18px; }
+    .section { background:#f8f9fb; border:1px solid #eceef4; padding:16px; border-radius:12px; margin:14px 0;}
+    .row { display:flex; gap:18px; flex-wrap:wrap; }
+    .col { flex: 1 1 280px; }
+    label { display:block; font-weight:600; margin:10px 0 6px; }
+    input[type=text], input[type=number], textarea { width:100%; padding:10px; border:1px solid #d9dce7; border-radius:8px; font-size:14px;}
+    textarea { min-height: 90px; }
+    .checks { display:flex; gap:14px; flex-wrap:wrap; }
+    .check { display:flex; align-items:center; gap:8px; }
+    button { width:100%; padding:12px 16px; border:0; border-radius:10px; background:#4f46e5; color:#fff; font-size:16px; cursor:pointer; }
+    button:disabled { background:#aaa; cursor:not-allowed; }
+    #loading { display:none; margin-top:12px; padding:10px; background:#fff7d6; border:1px solid #ffe59a; border-radius:10px; }
+    #error { display:none; margin-top:12px; padding:10px; background:#ffe3e3; border:1px solid #ffbdbd; border-radius:10px; color:#7a1515;}
+    #results { display:none; margin-top:18px; }
+    .card { border:1px solid #eceef4; border-radius:12px; padding:14px; margin:10px 0; background:#fff;}
+    .badge { font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid #ddd; margin-left:8px;}
+    .safe { background:#e9f8ef; border-color:#b9ebc8; color:#14532d;}
+    .repaired { background:#e7f3ff; border-color:#b6d7ff; color:#0b3b77;}
+    ul { margin:6px 0 0 18px; }
+    .muted { color:#666; font-size:13px; }
+    details { margin-top:8px; }
+    .trace { margin-top:8px; padding:10px; background:#f6f7f9; border:1px solid #eee; border-radius:10px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Reasoning-Based Weekly Meal Planner</h1>
+  <p class="sub">Hard constraints → Safe/Unsafe/Uncertain → Repair → Meal plan + Grocery list</p>
+
+  <!-- IMPORTANT: no real submit. Prevent refresh by using type=button -->
+  <form id="mealPlanForm" onsubmit="return false;">
+    <div class="section">
+      <h2>Hard Constraints</h2>
+
+      <label>Allergies (Hard)</label>
+      <div class="checks" id="allergyCheckboxes"></div>
+      <p class="muted">Non-negotiable safety rules.</p>
+
+      <label for="manualAvoid">Manual Avoid List (Hard)</label>
+      <textarea id="manualAvoid" placeholder="One per line or comma-separated. Example: peanut oil, sesame, shellfish"></textarea>
+      <p class="muted">Any match here marks a recipe Unsafe.</p>
+
+      <label>Religious / Dietary Rules (Hard)</label>
+      <div class="checks">
+        <div class="check"><input type="checkbox" id="halal"/><span>Halal</span></div>
+        <div class="check"><input type="checkbox" id="kosher"/><span>Kosher</span></div>
+        <div class="check"><input type="checkbox" id="vegan"/><span>Vegan</span></div>
+      </div>
+      <p class="muted">Ambiguous items become Uncertain instead of assumed safe.</p>
+    </div>
+
+    <div class="section">
+      <h2>Preferences</h2>
+
+      <div class="row">
+        <div class="col">
+          <label for="recipePreferences">Keywords</label>
+          <input id="recipePreferences" type="text" placeholder='e.g., "pasta", "chicken", "mac and cheese"'/>
+          <p class="muted">Used to retrieve candidates (not safety).</p>
+        </div>
+        <div class="col">
+          <label for="days">Days</label>
+          <input id="days" type="number" min="1" max="28" value="5"/>
+        </div>
+      </div>
+
+      <label>Soft Constraints (Ranking Only)</label>
+      <div class="checks">
+        <div class="check"><input type="checkbox" id="easyToCook"/><span>Easy to cook</span></div>
+        <div class="check"><input type="checkbox" id="lowFat"/><span>Prefer lower fat</span></div>
+        <div class="check"><input type="checkbox" id="avoidSpicy"/><span>Avoid spicy</span></div>
+      </div>
+      <p class="muted">Only affects ordering among Safe recipes.</p>
+    </div>
+
+    <button type="button" id="generateBtn">Generate Meal Plan</button>
+  </form>
+
+  <div id="loading">Generating your meal plan...</div>
+  <div id="error"></div>
+
+  <div id="results">
+    <h2>Meal Plan</h2>
+    <div id="mealPlanContent"></div>
+    <div id="groceryList"></div>
+  </div>
+</div>
+
+<script>
+  const commonAllergens = [
+    'Nut Allergy','Peanut Allergy','Shellfish Allergy','Fish Allergy',
+    'Dairy Allergy','Egg Allergy','Soy Allergy','Wheat Allergy',
+    'Sesame Allergy','Tree Nut Allergy'
+  ];
+
+  const allergyContainer = document.getElementById('allergyCheckboxes');
+  commonAllergens.forEach(a => {
+    const id = `allergy_${a.replace(/\s+/g,'_')}`;
+    const div = document.createElement('div');
+    div.className = 'check';
+    div.innerHTML = `<input type="checkbox" name="allergies" id="${id}" value="${a}"><label for="${id}" style="font-weight:500;margin:0;">${a}</label>`;
+    allergyContainer.appendChild(div);
+  });
+
+  function parseManualAvoid(text){
+    if(!text) return [];
+    return text.split(/[\n,]/g).map(s=>s.trim()).filter(Boolean);
+  }
+
+  function buildPreferencesFromText(text){
+    const preferences = {};
+    const t = (text||'').trim();
+    if(!t) return preferences;
+    preferences.keywords = t.toLowerCase();
+    return preferences;
+  }
+
+  function showError(msg){
+    const e = document.getElementById('error');
+    e.style.display = 'block';
+    e.textContent = msg;
+  }
+
+  function displayResults(result){
+    const results = document.getElementById('results');
+    const content = document.getElementById('mealPlanContent');
+    const grocery = document.getElementById('groceryList');
+    content.innerHTML = '';
+    grocery.innerHTML = '';
+
+    if(result.success === false){
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `<h3>No Plan Generated</h3><p>${result.message || 'No safe recipes found.'}</p>`;
+      content.appendChild(card);
+
+      (result.rejected_samples || []).forEach(s => {
+        const c = document.createElement('div');
+        c.className = 'card';
+        c.innerHTML = `<h3>${s.title}</h3>
+          <p><b>Label:</b> ${s.label}</p>
+          <p><b>Explanation:</b> ${s.explanation}</p>
+          ${s.trace_preview && s.trace_preview.length ? `
+            <details><summary>Trace (preview)</summary>
+            <div class="trace">${s.trace_preview.map(t=>`<div>${t}</div>`).join('')}</div>
+            </details>` : ''}`;
+        content.appendChild(c);
+      });
+
+      results.style.display = 'block';
+      return;
+    }
+
+    (result.meal_plan || []).forEach(day => {
+      const c = document.createElement('div');
+      c.className = 'card';
+      // Minimal fix: distinguish verified vs repaired_verified
+      let badgeClass = 'badge unknown';
+      let badgeText = (day.status || 'UNKNOWN').toUpperCase();
+
+      if (day.status === 'safe') {
+        badgeClass = 'badge safe';
+        badgeText = 'SAFE';
+      } else if (day.status === 'verified') {
+        badgeClass = 'badge safe';
+        badgeText = 'VERIFIED';
+      } else if (day.status === 'repaired_verified') {
+        badgeClass = 'badge repaired';
+        badgeText = 'REPAIRED';
+      }
+      c.innerHTML = `
+        <h3>Day ${day.day}: ${day.title} <span class="${badgeClass}">${badgeText}</span></h3>
+        <p><b>Explanation:</b> ${day.explanation || ''}</p>
+        <b>Ingredients:</b>
+        <ul>${(day.ingredients||[]).map(i=>`<li>${i}</li>`).join('')}</ul>
+        ${day.trace && day.trace.length ? `
+          <details><summary>Reasoning Trace</summary>
+          <div class="trace">${day.trace.map(t=>`<div>${t}</div>`).join('')}</div>
+          </details>` : ''}
+      `;
+      content.appendChild(c);
+    });
+
+    if(result.grocery_list && result.grocery_list.length){
+      grocery.innerHTML = `<h3>Shopping List</h3>` + result.grocery_list.map(x=>`<div class="card">${x.item} — ${x.count}x</div>`).join('');
+    }
+
+    results.style.display = 'block';
+  }
+
+  async function handleGenerate(){
+    const allergies = Array.from(document.querySelectorAll('input[name="allergies"]:checked')).map(cb=>cb.value);
+    const preferences = buildPreferencesFromText(document.getElementById('recipePreferences').value);
+    const manual_avoid = parseManualAvoid(document.getElementById('manualAvoid').value);
+    const soft_constraints = {
+      easy_to_cook: document.getElementById('easyToCook').checked,
+      low_fat: document.getElementById('lowFat').checked,
+      avoid_spicy: document.getElementById('avoidSpicy').checked
+    };
+
+    const payload = {
+      allergies,
+      halal: document.getElementById('halal').checked,
+      kosher: document.getElementById('kosher').checked,
+      vegan: document.getElementById('vegan').checked,
+      days: parseInt(document.getElementById('days').value || '5', 10),
+      preferences,
+      manual_avoid,
+      soft_constraints
+    };
+
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('error').style.display = 'none';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('generateBtn').disabled = true;
+
+    try{
+      const resp = await fetch('/generate_plan', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const result = await resp.json();
+      if(result.ok){
+        displayResults(result);
+      }else{
+        showError(result.error || 'Failed to generate meal plan.');
+      }
+    }catch(err){
+      showError('Request failed: ' + err.message);
+    }finally{
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('generateBtn').disabled = false;
+    }
+  }
+
+  document.getElementById('generateBtn').addEventListener('click', handleGenerate);
+</script>
+</body>
+</html>
