@@ -16,7 +16,7 @@ https://github.com/user-attachments/assets/6b450dcd-42f9-4b80-a892-03b949a3833d
 
 ## Poster
 
-https://github.com/user-attachments/files/26037784/team3-final-final.pdf
+<img width="1019" height="764" alt="Screenshot 2026-03-16 at 16 30 11" src="https://github.com/user-attachments/assets/6706fade-9ab6-4cb8-8a93-67040e1122f0" />
 
 ---
 
