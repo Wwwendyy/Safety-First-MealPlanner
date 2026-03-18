@@ -189,7 +189,7 @@ You can edit this section to match your exact implementation.
 ---
 
 ## Repository Structure
-
+```
 .
 ├── backend/              # backend logic, APIs, planning pipeline, safety checks
 ├── frontend/             # frontend UI (if applicable)
@@ -198,7 +198,7 @@ You can edit this section to match your exact implementation.
 ├── docs/                 # additional documentation
 ├── notebooks/            # experiments or prototype notebooks (if applicable)
 └── README.md
-
+```
 ---
 
 ## Project Highlights
